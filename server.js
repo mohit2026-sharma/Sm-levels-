@@ -1,10 +1,15 @@
 const express = require('express');
 const fetch = require('node-fetch');
 const cors = require('cors');
+const path = require('path');
+
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
 const BASE = 'https://apiconnect.angelbroking.com';
+
 app.post('/login', async (req, res) => {
   try {
     const { apiKey, clientId, mpin } = req.body;
@@ -16,6 +21,7 @@ app.post('/login', async (req, res) => {
     res.json(await r.json());
   } catch(e) { res.status(500).json({ status: false, message: e.message }); }
 });
+
 app.post('/candle', async (req, res) => {
   try {
     const { apiKey, token, symboltoken, fromdate, todate } = req.body;
@@ -27,6 +33,7 @@ app.post('/candle', async (req, res) => {
     res.json(await r.json());
   } catch(e) { res.status(500).json({ status: false, message: e.message }); }
 });
+
 app.post('/ltp', async (req, res) => {
   try {
     const { apiKey, token, symboltoken } = req.body;
@@ -38,5 +45,7 @@ app.post('/ltp', async (req, res) => {
     res.json(await r.json());
   } catch(e) { res.status(500).json({ status: false, message: e.message }); }
 });
-app.get('/', (req, res) => res.send('SM Levels Server Running!'));
+
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
 app.listen(process.env.PORT || 3000, () => console.log('Server started'));
