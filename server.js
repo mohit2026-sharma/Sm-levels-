@@ -2,33 +2,53 @@ const express = require('express');
 const fetch = require('node-fetch');
 const cors = require('cors');
 const path = require('path');
-
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const BASE = 'https://apiconnect.angelbroking.com';
+// Dhan API
+const DHAN = 'https://api.dhan.co';
 
 app.post('/login', async (req, res) => {
   try {
-    const { apiKey, clientId, mpin } = req.body;
-    const r = await fetch(`${BASE}/rest/auth/angelbroking/user/v1/loginByPassword`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-UserType': 'USER', 'X-SourceID': 'WEB', 'X-ClientLocalIP': '192.168.1.1', 'X-ClientPublicIP': '106.193.147.98', 'X-MACAddress': 'fe80::216e', 'X-PrivateKey': apiKey },
-      body: JSON.stringify({ clientcode: clientId, password: mpin })
+    const { accessToken, clientId } = req.body;
+    // Verify token by calling profile API
+    const r = await fetch(`${DHAN}/v2/fundlimit`, {
+      method: 'GET',
+      headers: {
+        'access-token': accessToken,
+        'client-id': clientId,
+        'Content-Type': 'application/json'
+      }
     });
-    res.json(await r.json());
+    const data = await r.json();
+    if (r.ok) {
+      res.json({ status: true, data: { accessToken, clientId } });
+    } else {
+      res.json({ status: false, message: data.message || 'Invalid credentials' });
+    }
   } catch(e) { res.status(500).json({ status: false, message: e.message }); }
 });
 
 app.post('/candle', async (req, res) => {
   try {
-    const { apiKey, token, symboltoken, fromdate, todate } = req.body;
-    const r = await fetch(`${BASE}/rest/secure/angelbroking/historical/v1/getCandleData`, {
+    const { accessToken, clientId, securityId, fromDate, toDate } = req.body;
+    const r = await fetch(`${DHAN}/v2/charts/historical`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-PrivateKey': apiKey, 'X-UserType': 'USER', 'X-SourceID': 'WEB', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ exchange: 'NSE', symboltoken, interval: 'ONE_DAY', fromdate, todate })
+      headers: {
+        'access-token': accessToken,
+        'client-id': clientId,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        securityId,
+        exchangeSegment: 'NSE_EQ',
+        instrument: 'EQUITY',
+        interval: 'D',
+        fromDate,
+        toDate
+      })
     });
     res.json(await r.json());
   } catch(e) { res.status(500).json({ status: false, message: e.message }); }
@@ -36,16 +56,21 @@ app.post('/candle', async (req, res) => {
 
 app.post('/ltp', async (req, res) => {
   try {
-    const { apiKey, token, symboltoken } = req.body;
-    const r = await fetch(`${BASE}/rest/secure/angelbroking/market/v1/quote/`, {
+    const { accessToken, clientId, securityId } = req.body;
+    const r = await fetch(`${DHAN}/v2/marketfeed/ltp`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-PrivateKey': apiKey, 'X-UserType': 'USER', 'X-SourceID': 'WEB', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ mode: 'LTP', exchangeTokens: { NSE: [symboltoken] } })
+      headers: {
+        'access-token': accessToken,
+        'client-id': clientId,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        NSE_EQ: [parseInt(securityId)]
+      })
     });
     res.json(await r.json());
   } catch(e) { res.status(500).json({ status: false, message: e.message }); }
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-
 app.listen(process.env.PORT || 3000, () => console.log('Server started'));
